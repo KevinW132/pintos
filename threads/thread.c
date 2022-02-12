@@ -22,6 +22,10 @@
 
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
+static struct list threadListSleep;
+
+/* List of processes in THREAD_READY state, that is, processes
+   that are ready to run but not actually running. */
 static struct list ready_list;
 
 /* List of all processes.  Processes are added to this list
@@ -92,12 +96,16 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  /**/
+  list_init(&threadListSleep);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
+
+
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -582,3 +590,50 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+/* */
+void insertar_en_lista_espera(int64_t ticks){
+
+	//Deshabilitamos interrupciones
+	enum intr_level old_level;
+	old_level = intr_disable ();
+
+	/* Remover el thread actual de "ready_list" e insertarlo en "lista_espera"
+	Cambiar su estatus a THREAD_BLOCKED, y definir su tiempo de expiracion */
+	
+	struct thread *thread_actual = thread_current ();
+  thread_actual->threadSleep = timer_ticks() + ticks;
+  
+  /*Donde TIEMPO_DORMIDO es el atributo de la estructura thread que usted
+	  definió como paso inicial*/
+	
+  list_push_back(&threadListSleep, &thread_actual->elem);
+  thread_block();
+
+  //Habilitar interrupciones
+	intr_set_level (old_level);
+}
+
+void remover_thread_durmiente(int64_t ticks){
+
+	/*Cuando ocurra un timer_interrupt, si el tiempo del thread ha expirado
+	Se mueve de regreso a ready_list, con la funcion thread_unblock*/
+	
+	//Iterar sobre "lista_espera"
+	struct list_elem *iter = list_begin(&threadListSleep);
+	while(iter != list_end(&threadListSleep) ){
+		struct thread *thread_lista_espera= list_entry(iter, struct thread, elem);
+		
+		/*Si el tiempo global es mayor al tiempo que el thread permanecía dormido
+		  entonces su tiempo de dormir ha expirado*/
+		
+		if(ticks >= thread_lista_espera->threadSleep){
+			//Lo removemos de "lista_espera" y lo regresamos a ready_list
+			iter = list_remove(iter);
+			thread_unblock(thread_lista_espera);
+		}else{
+			//Sino, seguir iterando
+			iter = list_next(iter);
+		}
+	}
+  
+}

@@ -93,6 +93,9 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+     /* Tiempo que un thread debe permanecer dormido */
+     uint64_t threadSleep;
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
